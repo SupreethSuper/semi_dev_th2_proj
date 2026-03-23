@@ -1,0 +1,6 @@
+#ignore all other log files
+*.log
+#any string files
+*.str
+#all the final files
+*.final
