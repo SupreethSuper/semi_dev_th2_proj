@@ -8,7 +8,8 @@ go victoryd simflags="-80 -P 4"
 mesh   space.mult=1.0
 
 set sd_length = 0.050
-set channel_length = 0.100
+#channel length as 0.1um
+set channel_length = 0.100 
 set ch = 100
 set gate_oxide = 0.001
 set si_film = 0.007
@@ -16,7 +17,13 @@ set sd_doping = 1e20
 set channel_doping = 1e16
 set Vg_initial = -0.6
 set Vg_final = 1.0
-set vdrain_max = 1.0
+
+#set V_drain_max to 1V for resolution
+set vdrain_max = 1
+
+#set V_drain_limiter to 0.05V as suggested by paper
+set v_drain_limiter = 0.05
+set v_drain_step = 0.01
 
 #
 x.mesh loc=0.00    spac=0.005
@@ -104,37 +111,37 @@ save outfile = soi_DG_Vg10_$"ch".str
 
 load infile=soi_DG_Vg00_$"ch".str
 log outfile=IdVd_DG_Vg00_$"ch".log
-solve vdrain=0 vstep=0.05 vfinal=$vdrain_max name=drain
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_limiter name=drain
 log off
 save outf=soi_DG_Vg00_$"ch".str
 
 load infile=soi_DG_Vg02_$"ch".str
 log outfile=IdVd_DG_Vg02_$"ch".log
-solve vdrain=0 vstep=0.05 vfinal=$vdrain_max name=drain
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_limiter name=drain
 log off
 save outf=soi_DG_Vg02_$"ch".str
 
 load infile=soi_DG_Vg04_$"ch".str
 log outfile=IdVd_DG_Vg04_$"ch".log
-solve vdrain=0 vstep=0.05 vfinal=$vdrain_max name=drain
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_limiter name=drain
 log off
 save outf=soi_DG_Vg04_$"ch".str
 
 load infile=soi_DG_Vg06_$"ch".str
 log outfile=IdVd_DG_Vg06_$"ch".log
-solve vdrain=0 vstep=0.05 vfinal=$vdrain_max name=drain
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_limiter name=drain
 log off
 save outf=soi_DG_Vg06_$"ch".str
 
 load infile=soi_DG_Vg08_$"ch".str
 log outfile=IdVd_DG_Vg08_$"ch".log
-solve vdrain=0 vstep=0.05 vfinal=$vdrain_max name=drain
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_limiter name=drain
 log off
 save outf=soi_DG_Vg08_$"ch".str
 
 load infile=soi_DG_Vg10_$"ch".str
 log outfile=IdVd_DG_Vg10_$"ch".log
-solve vdrain=0 vstep=0.05 vfinal=$vdrain_max name=drain
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_limiter name=drain
 log off
 save outf=soi_DG_Vg10_$"ch".str
 
