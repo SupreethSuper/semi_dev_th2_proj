@@ -4,3 +4,6 @@
 *.str
 #all the final files
 *.final
+
+#also ignore any pdf files
+*.pdf
