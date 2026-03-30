@@ -1,0 +1,183 @@
+# ################### DG SOI Device - Fig 2a Replication ######################
+# Reproduces Fig 2a from Taur scaling theory paper:
+#   Transfer characteristics (log ID vs VG) at:
+#     - Vds = 0.05 V  (linear regime  - solid curve)
+#     - Vds = 1.00 V  (saturation regime - dashed curve)
+#
+# Technology node : 100 nm
+# Design rules (from paper scaling theory for DG SOI):
+#   tsi  = 7 nm  (< L/3 = 33 nm; satisfies scaling rule)
+#   tox  = 1 nm  (scaled oxide)
+#   Na   = 1e16 /cm^3 (near-intrinsic body per paper recommendation)
+#   Gate : Aluminum (workfunction ~4.1 eV)
+# ###############################################################################
+go victoryd simflags="-80 -P 4"
+
+mesh   space.mult=1.0
+
+set sd_length       = 0.050
+set channel_length  = 0.100
+set ch              = 100
+set gate_oxide      = 0.001
+set si_film         = 0.007
+set sd_doping       = 1e20
+set channel_doping  = 1e16
+
+# Vg sweep range and step (fine step for accurate SS extraction)
+set Vg_initial  = -1.0
+set Vg_final    = 1.5
+set Vg_step     = 0.02
+
+# Two drain biases for Fig 2a
+set Vds_lin     = 0.05
+set Vds_sat     = 1.0
+
+# Output characteristics drain sweep
+set v_drain_max  = 1.0
+set v_drain_step = 0.02
+
+# ---- x-mesh (channel direction) ----
+x.mesh loc=0.00                                       spac=0.005
+x.mesh loc=$"sd_length"                               spac=0.001
+x.mesh loc=$"sd_length" + $"channel_length"/2         spac=0.001
+x.mesh loc=$"sd_length" + $"channel_length"           spac=0.001
+x.mesh loc=2*$"sd_length" + $"channel_length"         spac=0.005
+
+# ---- y-mesh (vertical, through oxide/Si film/oxide) ----
+# Fine spacing throughout to resolve 7 nm Si film (spac=0.0005 = 0.5 nm)
+y.mesh loc=-$"gate_oxide"                 spac=0.0005
+y.mesh loc=0.00                           spac=0.0005
+y.mesh loc=$"si_film"/2                   spac=0.0005
+y.mesh loc=$"si_film"                     spac=0.0005
+y.mesh loc=$"si_film" + $"gate_oxide"     spac=0.0005
+
+# ---- regions ----
+region      num=1 y.max=0                               oxide
+region      num=2 y.min=0 y.max=$"si_film"              silicon
+region      num=3 y.min=$"si_film"                      oxide
+
+# ---- electrodes ----
+electrode   name=gate   x.min=$"sd_length" x.max=$"sd_length" + $"channel_length" \
+                        y.min=-$"gate_oxide" y.max=-$"gate_oxide"
+electrode   name=gate2  x.min=$"sd_length" x.max=$"sd_length" + $"channel_length" \
+                        y.min=$"si_film" + $"gate_oxide" \
+                        y.max=$"si_film" + $"gate_oxide"
+electrode   name=source x.max=$"sd_length" y.min=0 y.max=0
+electrode   name=drain  x.min=$"sd_length" + $"channel_length" y.min=0 y.max=0
+
+# ---- doping ----
+doping  uniform conc=$"sd_doping"     n.type \
+        x.min=0                       x.max=$"sd_length" \
+        y.min=0                       y.max=$"si_film"
+doping  uniform conc=$"sd_doping"     n.type \
+        x.min=$"sd_length" + $"channel_length" \
+        y.min=0                       y.max=$"si_film"
+doping  uniform conc=$"channel_doping" p.type \
+        x.min=$"sd_length"            x.max=$"sd_length" + $"channel_length" \
+        y.min=0                       y.max=$"si_film"
+
+# ---- aluminum gates (symmetric DG, both tied together) ----
+contact name=gate  aluminum
+contact name=gate2 aluminum common=gate
+
+save outf=SOI_DEVICE_DG_$"channel_length"_$"si_film".str
+
+# ---- models and solver ----
+models cvt print
+method newton trap maxtraps=10
+output e.velocity ex.velocity
+
+# ###############################################################################
+# Fig 2a  --  CURVE 1: IDVG at Vds = 0.05 V  (linear regime, solid curve)
+# ###############################################################################
+solve init
+solve prev
+solve vdrain = $"Vds_lin"
+log outfile=IDVG_DG_lin_$"ch".log
+solve vgate=$"Vg_initial" vstep=$"Vg_step" name=gate vfinal=$"Vg_final"
+log off
+
+extract init infile = "IDVG_DG_lin_$"ch".log"
+extract name="vth_lin"  (xintercept(maxslope(curve(v."gate",i."drain"))) \
+                         - ave(v."drain")/2.0)
+extract name="subvt_lin" 1.0/slope(maxslope(curve(v."gate",log10(i."drain"))))
+
+# ###############################################################################
+# Fig 2a  --  CURVE 2: IDVG at Vds = 1.0 V  (saturation regime, dashed curve)
+# ###############################################################################
+solve init
+solve prev
+solve vdrain = $"Vds_sat"
+log outfile=IDVG_DG_sat_$"ch".log
+solve vgate=$"Vg_initial" vstep=$"Vg_step" name=gate vfinal=$"Vg_final"
+log off
+
+extract init infile = "IDVG_DG_sat_$"ch".log"
+extract name="vth_sat"  (xintercept(maxslope(curve(v."gate",i."drain"))) \
+                         - ave(v."drain")/2.0)
+extract name="subvt_sat" 1.0/slope(maxslope(curve(v."gate",log10(i."drain"))))
+
+# DIBL [mV/V] = (Vth_lin - Vth_sat) / (Vds_sat - Vds_lin) * 1000
+extract name="DIBL_mVperV" ($vth_lin - $vth_sat) / 0.95 * 1000
+
+# ###############################################################################
+# Output characteristics  (Id-Vd at several Vgs above Vth)
+# Used for Figs 4-5: output conductance vs channel length
+# ###############################################################################
+solve init
+
+solve vgate = $vth_lin + 0.0
+save outf = soi_DG_Vg00_$"ch".str
+
+solve vgate = $vth_lin + 0.2
+save outf = soi_DG_Vg02_$"ch".str
+
+solve vgate = $vth_lin + 0.4
+save outf = soi_DG_Vg04_$"ch".str
+
+solve vgate = $vth_lin + 0.6
+save outf = soi_DG_Vg06_$"ch".str
+
+solve vgate = $vth_lin + 0.8
+save outf = soi_DG_Vg08_$"ch".str
+
+solve vgate = $vth_lin + 1.0
+save outf = soi_DG_Vg10_$"ch".str
+
+load infile=soi_DG_Vg00_$"ch".str
+log outfile=IdVd_DG_Vg00_$"ch".log
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_max name=drain
+log off
+save outf=soi_DG_Vg00_$"ch".str
+
+load infile=soi_DG_Vg02_$"ch".str
+log outfile=IdVd_DG_Vg02_$"ch".log
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_max name=drain
+log off
+save outf=soi_DG_Vg02_$"ch".str
+
+load infile=soi_DG_Vg04_$"ch".str
+log outfile=IdVd_DG_Vg04_$"ch".log
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_max name=drain
+log off
+save outf=soi_DG_Vg04_$"ch".str
+
+load infile=soi_DG_Vg06_$"ch".str
+log outfile=IdVd_DG_Vg06_$"ch".log
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_max name=drain
+log off
+save outf=soi_DG_Vg06_$"ch".str
+
+load infile=soi_DG_Vg08_$"ch".str
+log outfile=IdVd_DG_Vg08_$"ch".log
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_max name=drain
+log off
+save outf=soi_DG_Vg08_$"ch".str
+
+load infile=soi_DG_Vg10_$"ch".str
+log outfile=IdVd_DG_Vg10_$"ch".log
+solve vdrain=0 vstep=$v_drain_step vfinal=$v_drain_max name=drain
+log off
+save outf=soi_DG_Vg10_$"ch".str
+
+quit
